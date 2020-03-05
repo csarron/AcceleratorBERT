@@ -6,3 +6,4 @@ data/
 *.egg-info
 *__pycache__
 .python-version
+experiments/
