@@ -60,7 +60,7 @@ def main():
   experiments_log_path = 'experiment_' + get_timestamp() + '.edgetpu.log'
 
   with open(experiments_log_path, 'w') as experiments_log_file:
-    experiments_log_file.write('hidden_size' + '\t' + 'num_hidden_layers' +'\t' + 'num_attention_layers' +'\t' + 'intermediate_size' + '\t' + 'inference_time' + '\n')
+    experiments_log_file.write('hidden_size' + '\t' + 'num_hidden_layers' +'\t' + 'num_attention_layers' +'\t' + 'intermediate_size' + '\t' + 'inference_time_ms' + '\n')
 
     for hidden_size in hidden_size_arr:
       for num_hidden_layers in num_hidden_layers_arr:
