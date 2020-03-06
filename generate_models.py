@@ -107,14 +107,16 @@ def main():
             + '_num_attention_layers_' + str(num_attention_layers) \
             + '_intermediate_size_' + str(intermediate_size)
 
+          try:
+            generate_model(hidden_size, num_hidden_layers, num_attention_layers, \
+              intermediate_size, output_dir, 384, 2, True)
+          except ValueError as ve:
+            print(ve)
+
           convert_to_ir(output_dir + '/model.meta')
-          # try:
-          #   generate_model(hidden_size, num_hidden_layers, num_attention_layers, \
-          #     intermediate_size, output_dir, 384, 2, False)
-          # except ValueError as ve:
-          #   print(ve)
 
           model_count+=1
+
   print('Model count: ', model_count)
 
 if __name__ == '__main__':

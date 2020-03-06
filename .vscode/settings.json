@@ -1,3 +1,7 @@
 {
-    "python.pythonPath": "C:\\OtherPrograms\\Python3.7.6\\python.exe"
+    "python.pythonPath": "C:\\OtherPrograms\\Python3.7.6\\python.exe",
+    "[python]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2
+      }
 }
