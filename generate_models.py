@@ -36,7 +36,14 @@ def create_model(bert_config, input_ids, segment_ids,input_mask, num_labels):
 
 # def main(args):
 #     bert_config = modeling.BertConfig.from_json_file(args.bert_config_file)
-def generate_model(hidden_size, num_hidden_layers, num_attention_layers, intermediate_size, output_dir, max_seq_length, num_labels, quantize):
+def generate_model(output_dir,
+                hidden_size=512,
+                num_hidden_layers=6,
+                num_attention_layers=8,
+                intermediate_size=3072,
+                max_seq_length = 384,
+                num_labels = 2,
+                quantize = True):
     tf.reset_default_graph()
     bert_config = modeling.BertConfig(30522, hidden_size, num_hidden_layers, num_attention_layers, intermediate_size)
 
@@ -90,7 +97,7 @@ def convert_to_ir(model_meta_path):
   print(command)
   os.system(command)
 
-def main():
+def generate_models():
   hidden_size_arr = [256, 512, 768]
   num_hidden_layers_arr = [3, 4, 6, 8, 9, 12]
   num_attention_layers_arr = [4, 6, 8, 12, 16]
@@ -113,18 +120,55 @@ def main():
           except ValueError as ve:
             print(ve)
 
-          convert_to_ir(output_dir + '/model.meta')
+          # convert_to_ir(output_dir + '/model.meta')
 
           model_count+=1
 
   print('Model count: ', model_count)
 
+def generate_models_input_size(output_experiments_dir, input_size):
+  # experiments_dir = 'experiments_input_size'
+
+  # for input_size in range(193, 400):
+  # output_dir = experiments_dir + '/input_size_' + str(input_size).zfill(3)
+  # print(output_dir)
+
+  output_model_dir = output_experiments_dir + '/input_size_' + str(input_size).zfill(3)
+  try:
+    generate_model(output_model_dir, max_seq_length = input_size)
+  except ValueError as ve:
+    print(ve)
+
+  convert_to_ir(output_model_dir + '/model.meta')
+
+import threading
+
+def generate_models_multithreaded(target_begin, target_offset):
+    print('Generating models on multiple threads\n')
+    output_experiments_dir = 'experiments_input_size'
+    thread_count = 6
+
+    # for job_idx in thread_count:
+    curr_target = target_begin
+    target_end = target_begin + target_offset
+
+    while curr_target < target_end:
+        threads = []
+
+        for thread_idx in range (0, thread_count):
+            if curr_target >= target_end:
+                break
+            threads.append(threading.Thread(target = generate_models_input_size, \
+                args = (output_experiments_dir, curr_target)))
+            curr_target += 1
+
+        for x in threads:
+            x.start()
+        for x in threads:
+            x.join()
+
+def main():
+  generate_models_multithreaded(400, 601 - 400)
+
 if __name__ == '__main__':
   main()
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument('-c', '--bert_config_file', type=str, default=None)
-    # parser.add_argument("-o", "--output_dir", type=str, default='bert_classifier')
-    # parser.add_argument("-n", "--num_labels", type=int, default=2)
-    # parser.add_argument("-l", "--max_seq_length", type=int, default=None)
-    # parser.add_argument("-q", "--quantize", action='store_true', help="quantize the tflite model")
-    # main(parser.parse_args())

@@ -22,10 +22,13 @@ def get_timestamp():
 
 def run_model(hidden_size, num_hidden_layers, num_attention_layers, intermediate_size, experiments_log_file):
 
-  model_dir = 'experiments/hidden_size_' + str(hidden_size) \
-    + '_num_hidden_layers_' + str(num_hidden_layers) \
-    + '_num_attention_layers_' + str(num_attention_layers) \
-    + '_intermediate_size_' + str(intermediate_size)
+  model_dir = 'experiments/hidden_size_' + str(hidden_size.zfill(4)) \
+    + '_num_hidden_layers_' + str(num_hidden_layers.zfill(2)) \
+    + '_num_attention_layers_' + str(num_attention_layers.zfill(2)) \
+    + '_intermediate_size_' + str(intermediate_size.zfill(4))
+
+  print(model_dir)
+  return
 
   tflite_model_path = model_dir + '/model.tflite'
 

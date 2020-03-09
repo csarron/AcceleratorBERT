@@ -3,5 +3,12 @@
     "[python]": {
         "editor.insertSpaces": true,
         "editor.tabSize": 2
-      }
+      },
+      "files.exclude": {
+        "**/.git": true,
+        "experiments*": true,
+        "perf_counts_ncs1": true,
+        "__pycache__": true,
+        "data": true,
+    }
 }

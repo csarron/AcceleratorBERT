@@ -6,7 +6,7 @@ data/
 *.egg-info
 *__pycache__
 .python-version
-experiments/
+experiments*
 *ncs1.log
 *ncs2.log
 *edgetpu.log

@@ -4,8 +4,9 @@ import os
 from argparse import ArgumentParser, SUPPRESS
 # import cv2
 import numpy as np
+from accelerator_util import *
+
 import time
-from datetime import datetime
 import logging
 logger = logging.getLogger('eet')
 
@@ -17,9 +18,6 @@ handler.setFormatter(fmt)
 logger.addHandler(handler)
 logger.propagate = False
 from openvino.inference_engine import IENetwork, IECore
-
-def get_timestamp():
-  return datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
 
 def build_argparser():
     parser = ArgumentParser(add_help=False)
@@ -59,12 +57,13 @@ def log_perf_counts(perf_counts, perf_counts_file):
 def run_model(hidden_size, num_hidden_layers, num_attention_layers, intermediate_size, experiments_log_file):
     # log.basicConfig(format="[ %(levelname)s ] %(message)s", level=log.INFO, stream=sys.stdout)
 
-    model_dir_name = 'hidden_size_' + str(hidden_size) \
-        + '_num_hidden_layers_' + str(num_hidden_layers) \
-        + '_num_attention_layers_' + str(num_attention_layers) \
-        + '_intermediate_size_' + str(intermediate_size)
+    model_dir_name = 'hidden_size_' + str(hidden_size).zfill(4) \
+        + '_num_hidden_layers_' + str(num_hidden_layers).zfill(2) \
+        + '_num_attention_layers_' + str(num_attention_layers).zfill(2) \
+        + '_intermediate_size_' + str(intermediate_size).zfill(4)
 
     model_dir = 'experiments/' + model_dir_name
+
     # args = build_argparser().parse_args()
     model_xml = model_dir + '/model.xml'
     model_bin = os.path.splitext(model_xml)[0] + ".bin"
@@ -111,7 +110,7 @@ def run_model(hidden_size, num_hidden_layers, num_attention_layers, intermediate
     with open('perf_counts_ncs1/' + model_dir_name + '_' + get_timestamp() + '.log', 'w') as perf_counts_file:
       log_perf_counts(perf_counts, perf_counts_file)
 
-def main():
+def main_1():
   hidden_size_arr = [768] #[256, 512, 768]
   num_hidden_layers_arr = [3, 4, 6, 8, 9]#, 12]
   num_attention_layers_arr = [4, 6, 8, 12, 16]
@@ -132,6 +131,62 @@ def main():
               print(ve)
             except Exception as e:
               print(e)
+
+
+def run_model(model_xml, results_file, input_size=384):
+    # log.basicConfig(format="[ %(levelname)s ] %(message)s", level=log.INFO, stream=sys.stdout)
+    if not os.path.exists(model_xml):
+      logger.error("File {} doesn't exist".format(model_xml))
+      return
+
+    model_name = os.path.splitext(model_xml)[0]
+    model_bin = os.path.splitext(model_xml)[0] + ".bin"
+    ie = IECore()
+    logger.info("Loading network files:\n\t{}\n\t{}".format(model_xml, model_bin))
+    net = IENetwork(model=model_xml, weights=model_bin)
+
+    input_blob = next(iter(net.inputs))
+    # logger.info('net.inputs: {}'.format(net.inputs))
+    # for k, v in net.inputs.items():
+    #     logger.info('net input: {}, shape={}'.format(k, v.shape))
+
+    # logger.info('net.outputs: {}'.format(net.outputs))
+    # for k, v in net.outputs.items():
+    #     logger.info('net output: {}, shape={}'.format(k, v.shape))
+    # # out_blob = next(iter(net.outputs))
+    # # net.batch_size = len(args.input)
+
+    exec_net = ie.load_network(network=net, device_name='MYRIAD')
+    # res = exec_net.infer(inputs={input_blob: np.zeros([1, input_size])})
+
+    start = time.perf_counter()
+    res = exec_net.infer(inputs={input_blob: np.zeros([1, input_size])})
+    inference_time = time.perf_counter() - start
+    perf_counts = exec_net.requests[0].get_perf_counts()
+
+    perf_counts_log_path = 'experiments_input_size_logs/input_size_' + str(input_size).zfill(3) + '_' + get_timestamp() + '.ncs1.log'
+    write_ncs_perf_counts(perf_counts, perf_counts_log_path)
+    results_file.write('{}\t{}\n'.format(input_size, get_total_perf_time(perf_counts)))
+
+    # logger.info("Processing output blob")
+    # logger.info("results b: {}".format(res))
+    # for k, v in res.items():
+    #     logger.info('net results: {}, shape={}, value={}'.format(k, v.shape, v))
+
+    # experiments_log_file.write(str(hidden_size) + '\t' + str(num_hidden_layers) +'\t' + str(num_attention_layers) +'\t' + str(intermediate_size) + '\t' + ('%.2f' % (inference_time * 1000)) + '\n')
+
+    # with open('perf_counts_ncs1/' + model_dir_name + '_' + get_timestamp() + '.log', 'w') as perf_counts_file:
+    #   log_perf_counts(perf_counts, perf_counts_file)
+
+def main():
+  results_file_path = 'experiments_input_size_results/experiment_' + get_timestamp() + '.ncs1.results.log'
+
+  with open(results_file_path, 'a+') as results_file:
+    # write_ncs_perf_header(results_file)
+    results_file.write('input_size\ttotal_execution_time_us\n')
+    for input_size in range(201, 513):
+      model_xml_path = 'experiments_input_size/input_size_' + str(input_size).zfill(3) + '/model.xml'
+      run_model(model_xml_path, results_file, input_size)
 
 if __name__ == '__main__':
     sys.exit(main() or 0)
