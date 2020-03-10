@@ -8,21 +8,8 @@ import os
 # from time import time
 # from openvino.inference_engine import IENetwork, IEPlugin
 from datetime import datetime
-
-def generate_models_info():
-  l_vocab_size = [30522] #30522
-  l_hidden_size = [768]
-  l_num_hidden_layers = [12]
-  l_num_attention_heads = [1]#, 2, 3, 4, 6, 8, 9, 12, 16, 24, 32]
-  l_intermediate_size = [3072] #3072
-  l_input_size = [384]
-
-  return generate_models_info_base(l_vocab_size,
-                          l_hidden_size,
-                          l_num_hidden_layers,
-                          l_num_attention_heads,
-                          l_intermediate_size,
-                          l_input_size)
+import signal
+import time
 
 def generate_models_info_base(l_vocab_size,
                           l_hidden_size,
@@ -77,6 +64,9 @@ def replace_ext(file_path, new_ext):
 def get_timestamp():
   return datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
 
+def init_worker():
+  signal.signal(signal.SIGINT, signal.SIG_IGN)
+
 # def write_ncs_perf_header(perf_counts_file):
 #     perf_counts_file.write('name\tlayer_type\texec_type\tstatus\treal_time_us\n')
 
@@ -110,3 +100,22 @@ def get_total_perf_time(perf_counts):
 
 # def write_ncs_total_execution_time(perf_counts_file, total_execution_time):
 #   perf_counts_file.write('name\tlayer_type\texec_type\tstatus\treal_time_us\n')
+
+def convert_to_ir(model_meta_path):
+  command ='python -m mo_tf --disable_nhwc_to_nchw' \
+    + ' --output prob' \
+    + ' --input input_ids{i32},segment_ids{i32}' \
+    + ' --input_meta_graph "' + model_meta_path + '"' \
+    + ' --output_dir "' + os.path.dirname(model_meta_path) + '"'
+  print(command)
+  os.system(command)
+
+def convert_to_ir_fp16(model_meta_path):
+  command ='python -m mo_tf --disable_nhwc_to_nchw' \
+    + ' --data_type FP16' \
+    + ' --output prob' \
+    + ' --input input_ids{i32},segment_ids{i32}' \
+    + ' --input_meta_graph "' + model_meta_path + '"' \
+    + ' --output_dir "' + os.path.dirname(model_meta_path) + '"'
+  print(command)
+  os.system(command)

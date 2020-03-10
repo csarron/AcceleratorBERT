@@ -95,64 +95,6 @@ def generate_model(output_dir,
       # with open(tflite_file, "wb") as f:
       #     f.write(tflite_model)
 
-def convert_to_ir(model_meta_path):
-  command ='python -m mo_tf --disable_nhwc_to_nchw' \
-    + ' --output prob' \
-    + ' --input input_ids{i32},segment_ids{i32}' \
-    + ' --data_type FP16' \
-    + ' --input_meta_graph "' + model_meta_path + '"' \
-    + ' --output_dir "' + os.path.dirname(model_meta_path) + '"'
-  print(command)
-  os.system(command)
-
-# def generate_models():
-#   hidden_size_arr = [256, 512, 768]
-#   num_hidden_layers_arr = [3, 4, 6, 8, 9, 12]
-#   num_attention_layers_arr = [4, 6, 8, 12, 16]
-#   intermediate_size_arr = [3072] # [768, 1024, 1536, 2048, 3072]
-#   experiments_dir = 'experiments'
-
-#   model_count = 0
-#   for hidden_size in hidden_size_arr:
-#     for num_hidden_layers in num_hidden_layers_arr:
-#       for num_attention_layers in num_attention_layers_arr:
-#         for intermediate_size in intermediate_size_arr:
-#           output_dir = experiments_dir + '/hidden_size_' + str(hidden_size) \
-#             + '_num_hidden_layers_' + str(num_hidden_layers) \
-#             + '_num_attention_layers_' + str(num_attention_layers) \
-#             + '_intermediate_size_' + str(intermediate_size)
-
-#           try:
-#             generate_model(hidden_size, num_hidden_layers, num_attention_layers, \
-#               intermediate_size, output_dir, 384, 2, True)
-#           except ValueError as ve:
-#             print(ve)
-
-#           # convert_to_ir(output_dir + '/model.meta')
-
-#           model_count+=1
-
-#   print('Model count: ', model_count)
-
-# def generate_models_input_size(output_experiments_dir, input_size):
-#   # experiments_dir = 'experiments_input_size'
-
-#   # for input_size in range(193, 400):
-#   # output_dir = experiments_dir + '/input_size_' + str(input_size).zfill(3)
-#   # print(output_dir)
-
-#   output_model_dir = output_experiments_dir + '/input_size_' + str(input_size).zfill(3)
-#   try:
-#     generate_model(output_model_dir, max_seq_length = input_size)
-#   except ValueError as ve:
-#     print(ve)
-
-#   convert_to_ir(output_model_dir + '/model.meta')
-
-def init_worker():
-  signal.signal(signal.SIGINT, signal.SIG_IGN)
-
-
 def worker(worker_id, queue):
   model_info = queue.get()
   model_dir_path = generated_models_dir + '/' + model_info['model_name']
@@ -170,10 +112,25 @@ def worker(worker_id, queue):
   except ValueError as ve:
     print('Error generating model: {}'.format(ve))
 
-  convert_to_ir(model_info['model_meta_path'])
+  convert_to_ir(generated_models_dir + '/' + model_info['model_meta_path'])
 
-generated_models_dir = 'generated_models'
-num_workers = 3
+def generate_models_info():
+  l_vocab_size = [30522] #[1000, 30522]
+  l_hidden_size = [768]
+  l_num_hidden_layers = [9] # 12 doesn't work
+  l_num_attention_heads = [1, 2, 3, 4, 6, 8, 9, 12, 16, 24, 32]
+  l_intermediate_size = [1024] # [1024, 3072]
+  l_input_size = [384]
+
+  return generate_models_info_base(l_vocab_size,
+                          l_hidden_size,
+                          l_num_hidden_layers,
+                          l_num_attention_heads,
+                          l_intermediate_size,
+                          l_input_size)
+
+generated_models_dir = 'generated_models_3'
+num_workers = 6
 
 def main():
   make_dir(generated_models_dir)
