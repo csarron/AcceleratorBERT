@@ -31,7 +31,8 @@ for size in `seq 510 -20 10` ; do
 done
 
 # only run the converted models
-
+# -d MYRIAD.26.2-ma2450 for ncs1
+# -d MYRIAD.26.3-ma2480 for ncs2
 for size in `seq 510 -20 10` ; do
   echo "running ${size}..."
   python3 "${src_dir}/run_ncs.py" -m data/bert_base_ncs/model_seq${size}.xml -s ${size} 2>&1 | tee "data/bert_base_ncs_seq${size}.log"
