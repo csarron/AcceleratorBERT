@@ -54,7 +54,7 @@ def build_argparser():
                       default="MYRIAD", type=str)
     args.add_argument("--labels", help="Optional. Path to a labels mapping file", default=None, type=str)
     args.add_argument("-nt", "--number_top", help="Optional. Number of top results", default=10, type=int)
-    args.add_argument("-s", "--size", help="input size", default=128, type=int)
+    args.add_argument("-s", "--max_seq_length", help="input size", default=40, type=int)
 
     return parser
 
@@ -120,9 +120,13 @@ def main():
     # Start sync inference
     logger.info("Starting inference in synchronous mode")
     # res = exec_net.infer(inputs={input_blob: np.zeros([1, args.size])})
+    input_ids = np.reshape(input_ids, [1, args.max_seq_length])
+    segment_ids = np.reshape(segment_ids, [1, args.max_seq_length])
+    input_mask = input_ids.astype(np.bool).astype(np.float32)
     res = exec_net.infer(inputs={
-        'input/input_ids': np.reshape(input_ids, [1, 40]),
-        'input/segment_ids': np.reshape(segment_ids, [1, 40]),
+        'input_ids': input_ids,
+        'segment_ids': segment_ids,
+        'input_mask': input_mask,
     })
     # res = exec_net.infer()
 
