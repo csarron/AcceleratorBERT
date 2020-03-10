@@ -7,6 +7,7 @@ data/
 *__pycache__
 .python-version
 experiments*
+generated*
 *ncs1.log
 *ncs2.log
 *edgetpu.log
