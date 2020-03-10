@@ -64,7 +64,8 @@ def main():
     args = build_argparser().parse_args()
     model_xml = args.model
     model_bin = os.path.splitext(model_xml)[0] + ".bin"
-
+    input_ids=[101, 2054, 2154, 2001, 1996, 2208, 2209, 2006, 1029, 102, 1996, 2208, 2001, 2209, 2006, 2337, 1021, 1010, 2355, 1010, 2012, 11902, 1005, 1055, 3346, 1999, 1996, 2624, 3799, 3016, 2181, 2012, 4203, 10254, 1010, 2662, 1012, 102, 0, 0]
+    segment_ids=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0]
     # Plugin initialization for specified device and load extensions library if specified
     logger.info("Creating Inference Engine")
     ie = IECore()
@@ -88,7 +89,7 @@ def main():
     # assert len(net.outputs) == 1, "Sample supports only single output topologies"
 
     logger.info("Preparing input blobs")
-    input_blob = next(iter(net.inputs))
+    # input_blob = next(iter(net.inputs))
     # print('net.input_blob:', input_blob)
     logger.info('net.inputs: {}'.format(net.inputs))
     for k, v in net.inputs.items():
@@ -118,7 +119,11 @@ def main():
 
     # Start sync inference
     logger.info("Starting inference in synchronous mode")
-    res = exec_net.infer(inputs={input_blob: np.zeros([1, args.size])})
+    # res = exec_net.infer(inputs={input_blob: np.zeros([1, args.size])})
+    res = exec_net.infer(inputs={
+        'input/input_ids': np.reshape(input_ids, [1, 40]),
+        'input/segment_ids': np.reshape(segment_ids, [1, 40]),
+    })
     # res = exec_net.infer()
 
     # Processing output blob
