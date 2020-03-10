@@ -134,7 +134,8 @@ def main():
     for k, v in res.items():
         logger.info('net results: {}, shape={}'.format(k, v.shape))
     logger.info('prob: {}, shape={}'.format(res['prob'], res['prob'].shape))
-    logger.info('latency avg={:.1f} ms, std={:.3f} ms'.format(np.mean(infer_times), np.std(infer_times)))
+    logger.info('input size={}, latency avg={:.1f} ms, std={:.3f} ms'.format(
+        args.max_seq_length, np.mean(infer_times), np.std(infer_times)))
 
 if __name__ == '__main__':
     sys.exit(main() or 0)
