@@ -18,7 +18,7 @@ from __future__ import print_function
 import sys
 import os
 from argparse import ArgumentParser, SUPPRESS
-# import cv2
+import time
 import numpy as np
 import logging
 logger = logging.getLogger('eet')
@@ -30,7 +30,7 @@ handler = logging.StreamHandler()
 handler.setFormatter(fmt)
 logger.addHandler(handler)
 logger.propagate = False
-from time import time
+
 from openvino.inference_engine import IENetwork, IECore
 
 
@@ -55,7 +55,8 @@ def build_argparser():
     args.add_argument("--labels", help="Optional. Path to a labels mapping file", default=None, type=str)
     args.add_argument("-nt", "--number_top", help="Optional. Number of top results", default=10, type=int)
     args.add_argument("-s", "--max_seq_length", help="input size", default=40, type=int)
-
+    args.add_argument('-c', '--count', type=int, default=5,
+        help='Number of times to run inference')
     return parser
 
 
@@ -66,6 +67,10 @@ def main():
     model_bin = os.path.splitext(model_xml)[0] + ".bin"
     input_ids=[101, 2054, 2154, 2001, 1996, 2208, 2209, 2006, 1029, 102, 1996, 2208, 2001, 2209, 2006, 2337, 1021, 1010, 2355, 1010, 2012, 11902, 1005, 1055, 3346, 1999, 1996, 2624, 3799, 3016, 2181, 2012, 4203, 10254, 1010, 2662, 1012, 102, 0, 0]
     segment_ids=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0]
+    input_ids = input_ids[:args.max_seq_length] + [0]*(args.max_seq_length-len(input_ids))
+    segment_ids = segment_ids[:args.max_seq_length]+ [0]*(args.max_seq_length-len(segment_ids))
+    logger.info("input_ids_len={}, segment_ids_len={}".format(len(input_ids), len(segment_ids)))
+
     # Plugin initialization for specified device and load extensions library if specified
     logger.info("Creating Inference Engine")
     ie = IECore()
@@ -74,19 +79,6 @@ def main():
     # Read IR
     logger.info("Loading network files:\n\t{}\n\t{}".format(model_xml, model_bin))
     net = IENetwork(model=model_xml, weights=model_bin)
-
-    # if "CPU" in args.device:
-    #     supported_layers = ie.query_network(net, "CPU")
-    #     not_supported_layers = [l for l in net.layers.keys() if l not in supported_layers]
-    #     if len(not_supported_layers) != 0:
-    #         log.error("Following layers are not supported by the plugin for specified device {}:\n {}".
-    #                   format(args.device, ', '.join(not_supported_layers)))
-    #         log.error("Please try to specify cpu extensions library path in sample's command line parameters using -l "
-    #                   "or --cpu_extension command line argument")
-    #         sys.exit(1)
-
-    # assert len(net.inputs.keys()) == 1, "Sample supports only single input topologies"
-    # assert len(net.outputs) == 1, "Sample supports only single output topologies"
 
     logger.info("Preparing input blobs")
     # input_blob = next(iter(net.inputs))
@@ -119,49 +111,30 @@ def main():
 
     # Start sync inference
     logger.info("Starting inference in synchronous mode")
-    # res = exec_net.infer(inputs={input_blob: np.zeros([1, args.size])})
-    input_ids = np.reshape(input_ids, [1, args.max_seq_length])
-    segment_ids = np.reshape(segment_ids, [1, args.max_seq_length])
-    input_mask = input_ids.astype(np.bool).astype(np.float32)
-    res = exec_net.infer(inputs={
-        'input_ids': input_ids,
-        'segment_ids': segment_ids,
-        'input_mask': input_mask,
-    })
-    # res = exec_net.infer()
+    infer_times = []
+    for iteration in range(args.count):
+        start = time.perf_counter()
+        # res = exec_net.infer(inputs={input_blob: np.zeros([1, args.size])})
+        input_ids = np.reshape(input_ids, [1, args.max_seq_length])
+        segment_ids = np.reshape(segment_ids, [1, args.max_seq_length])
+        input_mask = input_ids.astype(np.bool).astype(np.float32)
+        res = exec_net.infer(inputs={
+            'input_ids': input_ids,
+            'segment_ids': segment_ids,
+            'input_mask': input_mask,
+        })
+        inference_time = time.perf_counter() - start
+        infer_times.append(inference_time * 1000)
+        logger.info('latency iter{} {:.1f}ms'.format(iteration+1, inference_time * 1000))
+
 
     # Processing output blob
     logger.info("Processing output blob")
-    logger.info("results b: {}".format(res))
+    # logger.info("results b: {}".format(res))
     for k, v in res.items():
-        logger.info('net results: {}, shape={}, value={}'.format(k, v.shape, v))
-    # res = res[out_blob]
-    # log.info("results: {}".format(res))
-    # log.info("Top {} results: ".format(args.number_top))
-    # if args.labels:
-    #     with open(args.labels, 'r') as f:
-    #         labels_map = [x.split(sep=' ', maxsplit=1)[-1].strip() for x in f]
-    # else:
-    #     labels_map = None
-    # classid_str = "classid"
-    # probability_str = "probability"
-    # for i, probs in enumerate(res):
-    #     probs = np.squeeze(probs)
-    #     top_ind = np.argsort(probs)[-args.number_top:][::-1]
-    #     print("Image {}\n".format(args.input[i]))
-    #     print(classid_str, probability_str)
-    #     print("{} {}".format('-' * len(classid_str), '-' * len(probability_str)))
-    #     for id in top_ind:
-    #         det_label = labels_map[id] if labels_map else "{}".format(id)
-    #         label_length = len(det_label)
-    #         space_num_before = (len(classid_str) - label_length) // 2
-    #         space_num_after = len(classid_str) - (space_num_before + label_length) + 2
-    #         space_num_before_prob = (len(probability_str) - len(str(probs[id]))) // 2
-    #         print("{}{}{}{}{:.7f}".format(' ' * space_num_before, det_label,
-    #                                       ' ' * space_num_after, ' ' * space_num_before_prob,
-    #                                       probs[id]))
-    #     print("\n")
-    # log.info("This sample is an API example, for any performance measurements please use the dedicated benchmark_app tool\n")
+        logger.info('net results: {}, shape={}'.format(k, v.shape))
+    logger.info('prob: {}, shape={}'.format(res['prob'], res['prob'].shape))
+    logger.info('latency avg={:.1f} ms, std={:.3f} ms'.format(np.mean(infer_times), np.std(infer_times)))
 
 if __name__ == '__main__':
     sys.exit(main() or 0)
