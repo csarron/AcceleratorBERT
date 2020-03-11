@@ -68,12 +68,12 @@ def run_model(model_info, results_file):
     #   log_perf_counts(perf_counts, perf_counts_file)
 
 def generate_models_info():
-  l_vocab_size = [1000, 30522]
+  l_vocab_size = [1000, 30522] #[1000, 30522]
   l_hidden_size = [768]
   l_num_hidden_layers = [9] # 12 doesn't work
-  l_num_attention_heads = [1, 2, 3, 4, 6, 8, 9, 12, 16, 24, 32]
-  l_intermediate_size = [1024] #[1024, 3072]
-  l_input_size = [384]
+  l_num_attention_heads = [1, 2, 3, 4, 6, 8, 9, 12, 16, 24, 32] #[1, 2, 3, 4, 6, 8, 9, 12, 16, 24, 32]
+  l_intermediate_size = [1024, 3072] # [1024, 3072]
+  l_input_size = [100, 200, 300, 400] #[100, 200, 300, 384, 400, 500]
 
   return generate_models_info_base(l_vocab_size,
                           l_hidden_size,
@@ -82,7 +82,7 @@ def generate_models_info():
                           l_intermediate_size,
                           l_input_size)
 
-generated_models_dir = 'generated_models_3'
+generated_models_dir = 'generated_models'
 
 def main():
   results_file_path = 'experiments_10Mar/experiment_' + get_timestamp() + '.ncs1.results.log'

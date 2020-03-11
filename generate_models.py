@@ -118,9 +118,9 @@ def generate_models_info():
   l_vocab_size = [30522] #[1000, 30522]
   l_hidden_size = [768]
   l_num_hidden_layers = [9] # 12 doesn't work
-  l_num_attention_heads = [1, 2, 3, 4, 6, 8, 9, 12, 16, 24, 32]
-  l_intermediate_size = [1024] # [1024, 3072]
-  l_input_size = [384]
+  l_num_attention_heads = [8, 9, 12, 16, 24, 32] #[1, 2, 3, 4, 6, 8, 9, 12, 16, 24, 32]
+  l_intermediate_size = [1024, 3072] # [1024, 3072]
+  l_input_size = [100, 200, 300, 400, 500] #[100, 200, 300, 384, 400, 500]
 
   return generate_models_info_base(l_vocab_size,
                           l_hidden_size,
@@ -129,7 +129,7 @@ def generate_models_info():
                           l_intermediate_size,
                           l_input_size)
 
-generated_models_dir = 'generated_models_3'
+generated_models_dir = 'generated_models'
 num_workers = 6
 
 def main():
