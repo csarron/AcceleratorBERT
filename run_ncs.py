@@ -14,7 +14,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
-from __future__ import print_function
+import re
 import sys
 import os
 from argparse import ArgumentParser, SUPPRESS
@@ -33,6 +33,10 @@ logger.propagate = False
 
 from openvino.inference_engine import IENetwork, IECore
 
+_DEVICES = {
+    'ncs1': "MYRIAD.*-ma2450",
+    'ncs2': "MYRIAD.*-ma2480"
+} 
 
 def build_argparser():
     parser = ArgumentParser(add_help=False)
@@ -107,7 +111,15 @@ def main():
 
     # Loading model to the plugin
     logger.info("Loading model to the plugin")
-    exec_net = ie.load_network(network=net, device_name=args.device)
+    mapped_device = _DEVICES.get(args.device, args.device)
+    correct_device = None
+    for device in ie.available_devices:
+        if re.match(mapped_device, device):
+            correct_device = device
+            full_name = ie.get_metric(device, "FULL_DEVICE_NAME")
+            logger.info("Device: {}, {}".format(correct_device, full_name))
+            break
+    exec_net = ie.load_network(network=net, device_name=correct_device)
 
     # Start sync inference
     logger.info("Starting inference in synchronous mode")

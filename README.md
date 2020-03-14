@@ -39,4 +39,39 @@ for size in `seq 510 -20 10` ; do
   echo `pwd`;
 done
 
+# for bert 24 models
+for a in 2 4 8 12; do
+  h=$((a*64))
+  for l in $(seq 2 2 12); do
+    for size in 100 ; do
+      m=l${l}_h${h}_s${size}
+      echo "running m=${m}..."
+
+      python3 "${src_dir}/run_ckpt_model.py" -c data/bert_24/uncased_L-${l}_H-${h}_A-${a}/bert_config.json -cf data/bert_24/uncased_L-${l}_H-${h}_A-${a}/bert_model.ckpt -od data/bert_24 -on model_${m} -l ${size} 2>&1 | tee data/bert_24/tf_${m}.log
+
+      python3 mo_tf.py --input_meta_graph data/bert_24/model_${m}.meta \
+      --output prob \
+      --disable_nhwc_to_nchw \
+      --input input_ids{i32},segment_ids{i32},input_mask{f32} \
+      --progress --output_dir data/bert_24_ncs
+
+      python3 "${src_dir}/run_ncs.py" -m data/bert_24_ncs/model_${m}.xml -s ${size} 2>&1 | tee data/bert_24_ncs_${m}.log
+
+    done
+  done
+done
+
+
+for a in 2 4 8 12; do
+  h=$((a*64))
+  for l in $(seq 2 2 12); do
+    for size in 100 ; do
+      m=l${l}_h${h}_s${size}
+      for d in ncs1 ncs2; do
+        echo "running ${m} on ${d}..."
+        python3 "${src_dir}/run_ncs.py" -m data/bert_24_ncs/model_${m}.xml -s ${size} -d ${d} 2>&1 | tee data/bert_${d}_${m}.log
+      done
+    done
+  done
+done
 ````
