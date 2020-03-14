@@ -41,7 +41,8 @@ def main():
   print(input_details)
   # Example output: [{'name': 'input_1', 'index': 0, 'shape': array([  1, 384]), 'dtype': <class 'numpy.int32'>, 'quantization': (0.0, 0), 'quantization_parameters': {'scales': array([], dtype=float32), 'zero_points': array([], dtype=int32), 'quantized_dimension': 0}}]
   print('running on {}'.format('edge tpu' if args.tpu else 'host machine'))
-  input_content = np.zeros([1, args.max_seq_length])
+  # input_content = np.zeros([1, args.max_seq_length])
+  input_content = np.random.randint(low=1, high=20000, size=[1, args.max_seq_length], dtype=np.int32)
   input_data = np.array(input_content, dtype=input_type)
   interpreter.set_tensor(input_details[0]['index'], input_data)
   for _ in range(args.count):
