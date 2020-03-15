@@ -17,27 +17,22 @@ cd /opt/intel/openvino/deployment_tools/model_optimizer/
 src_dir="this source code path"
 for size in `seq 510 -20 10` ; do
   echo "running ${size}..."
-  python3 "${src_dir}/run_ckpt_model.py" -c "${src_dir}/bert_config.json" -l ${size} 2>&1 | tee "${src_dir}/data/bert_base/tf_seq${size}.log"
+  python3 "${src_dir}/run_ckpt_model.py" -c "${src_dir}/bert_config.json" -l ${size} -od data/bert_base -on model_seq${size} 2>&1 | tee data/tf_seq${size}.log
 
   python3 mo_tf.py --input_meta_graph "data/bert_base/model_seq${size}.meta" \
   --output prob \
   --disable_nhwc_to_nchw \
   --input input_ids{i32},segment_ids{i32},input_mask{f32} \
-  --progress --output_dir data/bert_base_ncs
+  --progress --output_dir data/bert_ncs
 
-  python3 "${src_dir}/run_ncs.py" -m data/bert_base_ncs/model_seq${size}.xml -s ${size} 2>&1 | tee "data/bert_base_ncs_seq${size}.log"
+  for d in ncs1 ncs2; do
+    echo "running ${m} on ${d}..."
+    python3 "${src_dir}/run_ncs.py" -m data/bert_ncs/model_seq${size}.xml -s ${size} -d ${d} 2>&1 | tee data/${d}_seq${size}.log
+  done
   rm -rf "data/bert_base/model_seq*"
   echo `pwd`;
 done
 
-# only run the converted models
-# -d MYRIAD.26.2-ma2450 for ncs1
-# -d MYRIAD.26.3-ma2480 for ncs2
-for size in `seq 510 -20 10` ; do
-  echo "running ${size}..."
-  python3 "${src_dir}/run_ncs.py" -m data/bert_base_ncs/model_seq${size}.xml -s ${size} 2>&1 | tee "data/bert_base_ncs_seq${size}.log"
-  echo `pwd`;
-done
 
 # for bert 24 models
 for a in 2 4 8 12; do
