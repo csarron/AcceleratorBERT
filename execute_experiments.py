@@ -8,6 +8,8 @@ import numpy as np
 import modeling
 import threading
 import signal
+import json
+from datetime import datetime
 import tensorflow as tf
 import logging
 logger = logging.getLogger('eet')
@@ -85,6 +87,11 @@ def generate_bert_model(bert_config, max_seq_length, model_name, model_dir):
 
     tf.gfile.MakeDirs(model_dir)
     saved_model_path = os.path.join(model_dir, model_name)
+
+    with open(os.path.join(model_dir, 'bert_config.json'), 'w') as bert_config_file:
+        # For reference
+        bert_config_file.write(bert_config.to_json_string())
+
     input_ids=[101, 2054, 2154, 2001, 1996, 2208, 2209, 2006, 1029, 102, 1996, 2208, 2001, 2209, 2006, 2337, 1021, 1010, 2355, 1010, 2012, 11902, 1005, 1055, 3346, 1999, 1996, 2624, 3799, 3016, 2181, 2012, 4203, 10254, 1010, 2662, 1012, 102, 0, 0]
     segment_ids=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0]
     input_ids = input_ids[:max_seq_length] + [0]*(max_seq_length-len(input_ids))
@@ -150,10 +157,18 @@ def signal_handler(sig, frame):
     running = False
     sys.exit(0)
 
-def run_ncs(xml_path, max_seq_length, iteration_count):
+def run_ncs(model_info, experiment_data_file):
     # log.basicConfig(format="[ %(levelname)s ] %(message)s", level=log.INFO, stream=sys.stdout)
     # args = build_argparser().parse_args()
     # model_xml = args.model
+
+    bert_config = model_info[0]
+    num_hidden_layers = bert_config.num_hidden_layers
+    hidden_size = bert_config.hidden_size
+    num_attention_heads = bert_config.num_attention_heads
+    max_seq_length = model_info[1]
+    xml_path = model_info[5]
+
     model_bin = os.path.splitext(xml_path)[0] + ".bin"
     input_ids=[101, 2054, 2154, 2001, 1996, 2208, 2209, 2006, 1029, 102, 1996, 2208, 2001, 2209, 2006, 2337, 1021, 1010, 2355, 1010, 2012, 11902, 1005, 1055, 3346, 1999, 1996, 2624, 3799, 3016, 2181, 2012, 4203, 10254, 1010, 2662, 1012, 102, 0, 0]
     segment_ids=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0]
@@ -197,8 +212,12 @@ def run_ncs(xml_path, max_seq_length, iteration_count):
 
     logger.info("Waiting 5 sec")
     time.sleep(5)
-    logger.info("############ Starting inference in synchronous mode")
     infer_times = []
+    begin_timestamp = get_timestamp()
+    iteration_count = int(100 / num_hidden_layers)
+
+    logger.info("############ Executing {} iterations".format(iteration_count))
+
     for iteration in range(iteration_count):
         start = time.perf_counter()
         # # res = exec_net.infer(inputs={input_blob: np.zeros([1, args.size])})
@@ -216,18 +235,16 @@ def run_ncs(xml_path, max_seq_length, iteration_count):
         infer_times.append(inference_time * 1000)
         logger.info('############ latency iter {}: {:.1f}ms'.format(iteration+1, inference_time * 1000))
 
-        # if iteration % 2 == 0:
-        #     logger.info("Waiting 10 sec")
-        #     time.sleep(10)
+        # if iteration > 0 and iteration % 10 == 0:
+        #     logger.info("Cooling off")
+        #     time.sleep(5)
 
+    end_timestamp = get_timestamp()
 
-    # logger.info("############ Processing output blob")
-    # # logger.info("results b: {}".format(res))
-    # for k, v in res.items():
-    #     logger.info('net results: {}, shape={}'.format(k, v.shape))
-    # logger.info('prob: {}, shape={}'.format(res['prob'], res['prob'].shape))
-    logger.info('############ model: {}, input size={}, latency avg={:.1f} ms, std={:.3f} ms'.format(
-        xml_path, max_seq_length, np.mean(infer_times), np.std(infer_times)))
+    logger.info('############ model: {}, input size={}, latency avg={:.1f} ms, std={:.3f} ms'.format(xml_path, max_seq_length, np.mean(infer_times), np.std(infer_times)))
+
+    experiment_row = '{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(num_hidden_layers, hidden_size, num_attention_heads, max_seq_length, np.mean(infer_times), np.std(infer_times), begin_timestamp, end_timestamp)
+    experiment_data_file.write(experiment_row)
 
 def get_model_list():
     model_list = []
@@ -237,7 +254,7 @@ def get_model_list():
             for hidden_size in [128, 144, 160, 192, 208, 224, 240, 256]:
                 for num_attention_heads in [2, 4, 8, 16]:
         # for num_hidden_layers in [2]:
-        #     for hidden_size in [128]:
+        #     for hidden_size in [128, 256]:
         #         for num_attention_heads in [2]:
                     bert_config = modeling.BertConfig(
                         vocab_size = 30522,
@@ -262,17 +279,34 @@ def get_model_list():
     return model_list
 
 general_dir = 'data/custom_bert'
+experiments_data_dir = 'experiments'
+
+def create_dir(dir_name):
+    os.makedirs(dir_name, exist_ok=True)
+
+def get_timestamp():
+    return datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
+
+def get_experiment_data_file():
+    create_dir(experiments_data_dir)
+    experiment_data_file_path = os.path.join(experiments_data_dir, 'experiment_' + get_timestamp() + '.tsv')
+    experiment_data_file = open(experiment_data_file_path, 'w+')
+    experiment_data_file.write('L\tH\tA\tS\tLatency(ms)\tLatencyStd\tBeginTimestamp\tEndTimestamp\n')
+    return experiment_data_file
 
 def run_models(model_list):
-    for _, max_seq_length, _, _, _, model_xml in get_model_list():
-        logger.info(model_xml)
-        run_ncs(model_xml, max_seq_length, iteration_count = 20)
+    experiment_data_file = get_experiment_data_file()
+
+    for model_info in get_model_list():
+        run_ncs(model_info, experiment_data_file = experiment_data_file)
+
+    experiment_data_file.close()
 
 def main():
     signal.signal(signal.SIGINT, signal_handler)
     os.makedirs(general_dir, exist_ok=True)
-    generate_models(get_model_list())
-    # run_models(get_model_list())
+    # generate_models(get_model_list())
+    run_models(get_model_list())
 
 if __name__ == '__main__':
     sys.exit(main() or 0)
