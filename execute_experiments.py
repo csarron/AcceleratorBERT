@@ -111,42 +111,9 @@ def generate_bert_model(bert_config, max_seq_length, model_name, model_dir):
         })
         # logger.info('model_outputs: \n{}\n'.format(model_prob))
 
-def get_model_list():
-    model_list = []
-
-    for max_seq_length in [128]:
-        for num_hidden_layers in [2, 4, 6]:
-            for hidden_size in [128, 144, 160, 192, 208, 224, 240]:
-                for num_attention_heads in [2, 4, 8, 16]:
-        # for num_hidden_layers in [2]:
-        #     for hidden_size in [128, 144]:
-        #         for num_attention_heads in [16]:
-                    bert_config = modeling.BertConfig(
-                        vocab_size = 30522,
-                        hidden_size = hidden_size,
-                        num_hidden_layers = num_hidden_layers,
-                        num_attention_heads = num_attention_heads,
-                        intermediate_size = 3072,
-                        hidden_act = "gelu",
-                        hidden_dropout_prob = 0.1,
-                        attention_probs_dropout_prob = 0.1,
-                        max_position_embeddings = 512,
-                        type_vocab_size = 16,
-                        initializer_range = 0.02)
-
-                    model_name = "L-{}_H-{}_A-{}".format(num_hidden_layers, hidden_size, num_attention_heads)
-                    model_dir = os.path.join(general_dir, model_name)
-                    model_meta = os.path.join(model_dir, model_name + '.meta')
-                    model_xml = os.path.join(model_dir, model_name + '.xml')
-
-                    model_list.append((bert_config, max_seq_length, model_name, model_dir, model_meta, model_xml))
-
-    return model_list
-
 running = True
 
 def generate_model(model_entry):
-
     if running == False:
         print('----- Exiting')
         return
@@ -163,9 +130,9 @@ def generate_model(model_entry):
 
 def generate_models(model_list):
     thread_count = 6
-
     threads = []
     i = 0
+
     while i < len(model_list):
         threads.append(threading.Thread(target = generate_model, args = (model_list[i],)))
 
@@ -262,21 +229,50 @@ def run_ncs(xml_path, max_seq_length, iteration_count):
     logger.info('############ model: {}, input size={}, latency avg={:.1f} ms, std={:.3f} ms'.format(
         xml_path, max_seq_length, np.mean(infer_times), np.std(infer_times)))
 
+def get_model_list():
+    model_list = []
+
+    for max_seq_length in [128]:
+        for num_hidden_layers in [2, 4, 6]:
+            for hidden_size in [128, 144, 160, 192, 208, 224, 240, 256]:
+                for num_attention_heads in [2, 4, 8, 16]:
+        # for num_hidden_layers in [2]:
+        #     for hidden_size in [128]:
+        #         for num_attention_heads in [2]:
+                    bert_config = modeling.BertConfig(
+                        vocab_size = 30522,
+                        hidden_size = hidden_size,
+                        num_hidden_layers = num_hidden_layers,
+                        num_attention_heads = num_attention_heads,
+                        intermediate_size = 4 * hidden_size,
+                        hidden_act = "gelu",
+                        hidden_dropout_prob = 0.1,
+                        attention_probs_dropout_prob = 0.1,
+                        max_position_embeddings = 512,
+                        type_vocab_size = 2,
+                        initializer_range = 0.02)
+
+                    model_name = "L-{}_H-{}_A-{}_S-{}".format(num_hidden_layers, hidden_size, num_attention_heads, max_seq_length)
+                    model_dir = os.path.join(general_dir, model_name)
+                    model_meta = os.path.join(model_dir, model_name + '.meta')
+                    model_xml = os.path.join(model_dir, model_name + '.xml')
+
+                    model_list.append((bert_config, max_seq_length, model_name, model_dir, model_meta, model_xml))
+
+    return model_list
+
 general_dir = 'data/custom_bert'
 
 def run_models(model_list):
-    model_list = get_model_list()
-
-    for _, max_seq_length, _, _, _, model_xml in model_list:
+    for _, max_seq_length, _, _, _, model_xml in get_model_list():
         logger.info(model_xml)
-        run_ncs(model_xml, max_seq_length, iteration_count = 10)
+        run_ncs(model_xml, max_seq_length, iteration_count = 20)
 
 def main():
     signal.signal(signal.SIGINT, signal_handler)
-    model_list = get_model_list()
-
-    # generate_models(model_list)
-    run_models(model_list)
+    os.makedirs(general_dir, exist_ok=True)
+    generate_models(get_model_list())
+    # run_models(get_model_list())
 
 if __name__ == '__main__':
     sys.exit(main() or 0)
