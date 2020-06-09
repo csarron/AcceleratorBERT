@@ -12,6 +12,7 @@ def build_argparser():
     args.add_argument('-h', '--help', action='help', default=SUPPRESS, help='Show this help message and exit.')
     args.add_argument('--power_measurement_tsv_file', type=str, required=True)
     args.add_argument('--latency_measurement_tsv_file', type=str, required=True)
+    args.add_argument('--output_dir', type=str, required=True)
     return parser.parse_args()
 
 def get_latency_datetime(datetime_str):
@@ -27,7 +28,7 @@ def main():
     latency_rows = pd.read_csv(args.latency_measurement_tsv_file, sep='\t', header=0)
     power_rows = pd.read_csv(args.power_measurement_tsv_file, sep='\t', header=0)
 
-    output_file = open('experiments/latency_power_' + get_timestamp() + '.tsv', 'w+')
+    output_file = open(args.output_dir + '/latency_power_' + get_timestamp() + '.tsv', 'w+')
     output_file.write('L\tH\tA\tS\tLatency(ms)\tPower(W)\tEnergy(J)\tLatency_BeginTimestamp\tLatency_EndTimestamp\tPower_BeginTimestamp\tPower_EndTimestamp\n')
 
     for latency_index, latency_row in latency_rows.iterrows():

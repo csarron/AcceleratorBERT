@@ -80,7 +80,6 @@ def create_model(bert_config, input_ids, segment_ids,input_mask, num_labels):
   probabilities = tf.nn.softmax(logits, axis=-1, name="prob")
   return probabilities
 
-
 def generate_bert_model(bert_config, max_seq_length, model_name, model_dir):
     num_labels = 2
     ckpt_file = None
@@ -88,9 +87,11 @@ def generate_bert_model(bert_config, max_seq_length, model_name, model_dir):
     tf.gfile.MakeDirs(model_dir)
     saved_model_path = os.path.join(model_dir, model_name)
 
-    with open(os.path.join(model_dir, 'bert_config.json'), 'w') as bert_config_file:
-        # For reference
-        bert_config_file.write(bert_config.to_json_string())
+    bert_config_path = os.path.join(model_dir, 'bert_config.json')
+
+    if not os.path.exists(bert_config_path):
+        with open(bert_config_path, 'w') as bert_config_file:
+            bert_config_file.write(bert_config.to_json_string())
 
     input_ids=[101, 2054, 2154, 2001, 1996, 2208, 2209, 2006, 1029, 102, 1996, 2208, 2001, 2209, 2006, 2337, 1021, 1010, 2355, 1010, 2012, 11902, 1005, 1055, 3346, 1999, 1996, 2624, 3799, 3016, 2181, 2012, 4203, 10254, 1010, 2662, 1012, 102, 0, 0]
     segment_ids=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0]
@@ -118,8 +119,6 @@ def generate_bert_model(bert_config, max_seq_length, model_name, model_dir):
         })
         # logger.info('model_outputs: \n{}\n'.format(model_prob))
 
-running = True
-
 def generate_model(model_entry):
     if running == False:
         print('----- Exiting')
@@ -136,6 +135,7 @@ def generate_model(model_entry):
     os.system(openvino_command)
 
 def generate_models(model_list):
+    create_dir(generated_models_dir)
     thread_count = 6
     threads = []
     i = 0
@@ -246,6 +246,36 @@ def run_ncs(model_info, experiment_data_file):
     experiment_row = '{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(num_hidden_layers, hidden_size, num_attention_heads, max_seq_length, np.mean(infer_times), np.std(infer_times), begin_timestamp, end_timestamp)
     experiment_data_file.write(experiment_row)
 
+def get_model_list_bert_24():
+    model_list = []
+
+    for max_seq_length in [128]:
+        for num_hidden_layers in [2, 4, 6, 8, 10, 12]:
+            for num_attention_heads in [2, 4, 8, 12]:
+                hidden_size = num_attention_heads * 64
+                bert_config = modeling.BertConfig(
+                    vocab_size = 30522,
+                    hidden_size = hidden_size,
+                    num_hidden_layers = num_hidden_layers,
+                    num_attention_heads = num_attention_heads,
+                    intermediate_size = 4 * hidden_size,
+                    hidden_act = "gelu",
+                    hidden_dropout_prob = 0.1,
+                    attention_probs_dropout_prob = 0.1,
+                    max_position_embeddings = 512,
+                    type_vocab_size = 2,
+                    initializer_range = 0.02)
+
+                model_dir_name = "uncased_L-{}_H-{}_A-{}".format(num_hidden_layers, hidden_size, num_attention_heads)
+                model_name = "uncased_L-{}_H-{}_A-{}_S-{}".format(num_hidden_layers, hidden_size, num_attention_heads, max_seq_length)
+                model_dir = os.path.join(bert_24_dir, model_dir_name)
+                model_meta = os.path.join(model_dir, model_name + '.meta')
+                model_xml = os.path.join(model_dir, model_name + '.xml')
+
+                model_list.append((bert_config, max_seq_length, model_name, model_dir, model_meta, model_xml))
+
+    return model_list
+
 def get_model_list():
     model_list = []
 
@@ -270,16 +300,13 @@ def get_model_list():
                         initializer_range = 0.02)
 
                     model_name = "L-{}_H-{}_A-{}_S-{}".format(num_hidden_layers, hidden_size, num_attention_heads, max_seq_length)
-                    model_dir = os.path.join(general_dir, model_name)
+                    model_dir = os.path.join(generated_models_dir, model_name)
                     model_meta = os.path.join(model_dir, model_name + '.meta')
                     model_xml = os.path.join(model_dir, model_name + '.xml')
 
                     model_list.append((bert_config, max_seq_length, model_name, model_dir, model_meta, model_xml))
 
     return model_list
-
-general_dir = 'data/custom_bert'
-experiments_data_dir = 'experiments'
 
 def create_dir(dir_name):
     os.makedirs(dir_name, exist_ok=True)
@@ -297,16 +324,21 @@ def get_experiment_data_file():
 def run_models(model_list):
     experiment_data_file = get_experiment_data_file()
 
-    for model_info in get_model_list():
+    for model_info in model_list:
+        print(model_info)
         run_ncs(model_info, experiment_data_file = experiment_data_file)
 
     experiment_data_file.close()
 
+running = True
+bert_24_dir = 'data/bert_24'
+generated_models_dir = 'data/custom_bert'
+experiments_data_dir = 'experiments'
+
 def main():
     signal.signal(signal.SIGINT, signal_handler)
-    os.makedirs(general_dir, exist_ok=True)
     # generate_models(get_model_list())
-    run_models(get_model_list())
+    run_models(get_model_list_bert_24())
 
 if __name__ == '__main__':
     sys.exit(main() or 0)
