@@ -10,6 +10,7 @@ import threading
 import signal
 import json
 from datetime import datetime
+from datetime import timedelta
 import tensorflow as tf
 import logging
 logger = logging.getLogger('eet')
@@ -169,6 +170,8 @@ def run_ncs(model_info, experiment_data_file):
     max_seq_length = model_info[1]
     xml_path = model_info[5]
 
+    logger.info('\n\n{}\n\n'.format(bert_config.to_json_string()))
+
     model_bin = os.path.splitext(xml_path)[0] + ".bin"
     input_ids=[101, 2054, 2154, 2001, 1996, 2208, 2209, 2006, 1029, 102, 1996, 2208, 2001, 2209, 2006, 2337, 1021, 1010, 2355, 1010, 2012, 11902, 1005, 1055, 3346, 1999, 1996, 2624, 3799, 3016, 2181, 2012, 4203, 10254, 1010, 2662, 1012, 102, 0, 0]
     segment_ids=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0]
@@ -214,18 +217,15 @@ def run_ncs(model_info, experiment_data_file):
     time.sleep(5)
     infer_times = []
     begin_timestamp = get_timestamp()
-    iteration_count = int(100 / num_hidden_layers)
 
-    logger.info("############ Executing {} iterations".format(iteration_count))
+    run_inference_for = 60
+    inference_time_end = datetime.now() + timedelta(0, run_inference_for)
+    logger.info("############ Running inference for {} seconds".format(run_inference_for))
 
-    for iteration in range(iteration_count):
+    iteration = 0
+    while datetime.now() < inference_time_end:
+        logger.info('############ starting inference iter {}'.format(iteration))
         start = time.perf_counter()
-        # # res = exec_net.infer(inputs={input_blob: np.zeros([1, args.size])})
-        # input_ids = np.reshape(input_ids, [1, max_seq_length])
-        # segment_ids = np.reshape(segment_ids, [1, max_seq_length])
-        # input_mask = input_ids.astype(np.bool).astype(np.float32)
-
-        logger.info('############ starting inference iter {}'.format(iteration+1))
         res = exec_net.infer(inputs={
             'input_ids': input_ids,
             'segment_ids': segment_ids,
@@ -233,7 +233,8 @@ def run_ncs(model_info, experiment_data_file):
         })
         inference_time = time.perf_counter() - start
         infer_times.append(inference_time * 1000)
-        logger.info('############ latency iter {}: {:.1f}ms'.format(iteration+1, inference_time * 1000))
+        logger.info('############ latency iter {}: {:.1f}ms'.format(iteration, inference_time * 1000))
+        iteration += 1
 
         # if iteration > 0 and iteration % 10 == 0:
         #     logger.info("Cooling off")
@@ -252,6 +253,8 @@ def get_model_list_bert_24():
     for max_seq_length in [128]:
         for num_hidden_layers in [2, 4, 6, 8, 10, 12]:
             for num_attention_heads in [2, 4, 8, 12]:
+        # for num_hidden_layers in [2]:
+        #     for num_attention_heads in [2]:
                 hidden_size = num_attention_heads * 64
                 bert_config = modeling.BertConfig(
                     vocab_size = 30522,
@@ -284,7 +287,7 @@ def get_model_list():
             for hidden_size in [128, 144, 160, 192, 208, 224, 240, 256]:
                 for num_attention_heads in [2, 4, 8, 16]:
         # for num_hidden_layers in [2]:
-        #     for hidden_size in [128, 256]:
+        #     for hidden_size in [128]:
         #         for num_attention_heads in [2]:
                     bert_config = modeling.BertConfig(
                         vocab_size = 30522,
@@ -339,6 +342,7 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     # generate_models(get_model_list())
     run_models(get_model_list_bert_24())
+    # run_models(get_model_list())
 
 if __name__ == '__main__':
     sys.exit(main() or 0)

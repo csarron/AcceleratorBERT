@@ -1,5 +1,6 @@
 import sys
 import csv
+import os
 import pandas as pd
 from datetime import datetime
 from datetime import timedelta
@@ -10,9 +11,7 @@ def build_argparser():
     parser = ArgumentParser(add_help=False)
     args = parser.add_argument_group('Options')
     args.add_argument('-h', '--help', action='help', default=SUPPRESS, help='Show this help message and exit.')
-    args.add_argument('--power_measurement_tsv_file', type=str, required=True)
-    args.add_argument('--latency_measurement_tsv_file', type=str, required=True)
-    args.add_argument('--output_dir', type=str, required=True)
+    args.add_argument('--experiment_dir', type=str, required=True)
     return parser.parse_args()
 
 def get_latency_datetime(datetime_str):
@@ -25,11 +24,11 @@ def get_timestamp():
     return datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
 
 def main():
-    latency_rows = pd.read_csv(args.latency_measurement_tsv_file, sep='\t', header=0)
-    power_rows = pd.read_csv(args.power_measurement_tsv_file, sep='\t', header=0)
+    latency_rows = pd.read_csv(os.path.join(args.experiment_dir, 'latency.tsv'), sep='\t', header=0)
+    power_rows = pd.read_csv(os.path.join(args.experiment_dir, 'power.tsv'), sep='\t', header=0)
 
-    output_file = open(args.output_dir + '/latency_power_' + get_timestamp() + '.tsv', 'w+')
-    output_file.write('L\tH\tA\tS\tLatency(ms)\tPower(W)\tEnergy(J)\tLatency_BeginTimestamp\tLatency_EndTimestamp\tPower_BeginTimestamp\tPower_EndTimestamp\n')
+    output_file = open(os.path.join(args.experiment_dir, 'latency_power.tsv'), 'w+')
+    output_file.write('L\tH\tA\tS\tLatency(ms)\tLatencyStd\tPower(W)\tEnergy(J)\tLatency_BeginTimestamp\tLatency_EndTimestamp\tPower_BeginTimestamp\tPower_EndTimestamp\tOverheating\n')
 
     for latency_index, latency_row in latency_rows.iterrows():
         latency_begin_timestamp = get_latency_datetime(latency_row['BeginTimestamp'])
@@ -58,9 +57,11 @@ def main():
         mean_power = np.mean(power_values)
         energy = float(latency_row['Latency(ms)'])/1000.0 * mean_power
 
-        combined_row = '{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
+        combined_row = '{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(
             latency_row['L'], latency_row['H'], latency_row['A'], latency_row['S'],
-            latency_row['Latency(ms)'], mean_power, energy, latency_row['BeginTimestamp'], latency_row['EndTimestamp'], power_begin_timestamp, power_end_timestamp)
+            latency_row['Latency(ms)'], latency_row['LatencyStd'], mean_power, energy,
+            latency_row['BeginTimestamp'], latency_row['EndTimestamp'],
+            power_begin_timestamp, power_end_timestamp, 'Yes' if (float(latency_row['LatencyStd']) > 5.0) else 'No')
 
         output_file.write(combined_row)
 
