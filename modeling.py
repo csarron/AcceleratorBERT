@@ -489,8 +489,8 @@ def embedding_postprocessor(input_tensor,
     output += token_type_embeddings
 
   if use_position_embeddings:
-    assert_op = tf.assert_less_equal(seq_length, max_position_embeddings)
-    with tf.control_dependencies([assert_op]):
+    # assert_op = tf.assert_less_equal(seq_length, max_position_embeddings)
+    # with tf.control_dependencies([assert_op]):
       full_position_embeddings = tf.get_variable(
           name=position_embedding_name,
           shape=[max_position_embeddings, width],
