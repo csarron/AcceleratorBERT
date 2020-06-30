@@ -242,6 +242,15 @@ def run_ncs(model_info, experiment_data_file):
 
     end_timestamp = get_timestamp()
 
+    perf_counts = exec_net.requests[0].get_perf_counts()
+    perf_counts_file_path = os.path.join(experiments_data_dir, 'perf_counts_' + get_timestamp() + '.tsv')
+    perf_counts_file = open(perf_counts_file_path, 'w+')
+    perf_counts_file.write('L\tH\tA\tS\tName\tType\tExecType\tStatus\tRealTime(us)\n')
+    for layer, stats in perf_counts.items():
+        perf_counts_row = "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(num_hidden_layers, hidden_size, num_attention_heads,
+            max_seq_length, layer, stats['layer_type'], stats['exec_type'], stats['status'], stats['real_time'])
+        perf_counts_file.write(perf_counts_row)
+
     logger.info('############ model: {}, input size={}, latency avg={:.1f} ms, std={:.3f} ms'.format(xml_path, max_seq_length, np.mean(infer_times), np.std(infer_times)))
 
     experiment_row = '{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(num_hidden_layers, hidden_size, num_attention_heads, max_seq_length, np.mean(infer_times), np.std(infer_times), begin_timestamp, end_timestamp)
@@ -251,10 +260,10 @@ def get_model_list_bert_24():
     model_list = []
 
     for max_seq_length in [128]:
-        for num_hidden_layers in [2, 4, 6, 8, 10, 12]:
-            for num_attention_heads in [2, 4, 8, 12]:
-        # for num_hidden_layers in [2]:
-        #     for num_attention_heads in [2]:
+        # for num_hidden_layers in [2, 4, 6, 8, 10, 12]:
+        #     for num_attention_heads in [2, 4, 8, 12]:
+        for num_hidden_layers in [12]:
+            for num_attention_heads in [12]:
                 hidden_size = num_attention_heads * 64
                 bert_config = modeling.BertConfig(
                     vocab_size = 30522,
@@ -340,9 +349,10 @@ experiments_data_dir = 'experiments'
 
 def main():
     signal.signal(signal.SIGINT, signal_handler)
-    # generate_models(get_model_list())
-    run_models(get_model_list_bert_24())
-    # run_models(get_model_list())
+    # model_list = get_model_list()
+    model_list = get_model_list_bert_24()
+    # generate_models(model_list)
+    run_models(model_list)
 
 if __name__ == '__main__':
     sys.exit(main() or 0)
