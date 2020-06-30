@@ -123,75 +123,79 @@ def main(args):
     # results = []
     fields = ['L', 'H', 'A', 'latency'] + ['energy_{}'.format(n[0])
                                            for n in getNodes()]
-    with tf.device('/{}:*'.format(device)), open(args.output_file, 'w') as f:
+    with open(args.output_file, 'w') as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
         for bert_config in gen_config():
             tf.reset_default_graph()
-            sess = tf.Session()
-            input_ids_ph = tf.placeholder(shape=[1, args.max_seq_length],
-                                          dtype=tf.int32, name='input_ids')
-            segment_ids_ph = tf.placeholder(shape=[1, args.max_seq_length],
-                                            dtype=tf.int32, name='segment_ids')
-            input_mask_ph = tf.placeholder(shape=[1, args.max_seq_length],
-                                           dtype=tf.float32, name='input_mask')
-            prob = create_model(bert_config, input_ids_ph, segment_ids_ph,
-                                input_mask_ph, args.num_labels)
-            init_ckpt(args.ckpt_file)
-            sess.run(tf.initializers.global_variables())
+            with tf.device('/{}:*'.format(device)):
+                sess = tf.Session()
+                input_ids_ph = tf.placeholder(shape=[1, args.max_seq_length],
+                                              dtype=tf.int32, name='input_ids')
+                segment_ids_ph = tf.placeholder(shape=[1, args.max_seq_length],
+                                                dtype=tf.int32,
+                                                name='segment_ids')
+                input_mask_ph = tf.placeholder(shape=[1, args.max_seq_length],
+                                               dtype=tf.float32,
+                                               name='input_mask')
+                prob = create_model(bert_config, input_ids_ph, segment_ids_ph,
+                                    input_mask_ph, args.num_labels)
+                init_ckpt(args.ckpt_file)
+                sess.run(tf.initializers.global_variables())
 
-            input_ids = np.reshape(input_ids, [1, args.max_seq_length])
-            segment_ids = np.reshape(segment_ids, [1, args.max_seq_length])
-            input_mask = input_ids.astype(np.bool).astype(np.float32)
-            # warm_up 2 rounds
-            for _ in range(2):
-                model_prob = sess.run(prob, {
-                    input_ids_ph: input_ids,
-                    segment_ids_ph: segment_ids,
-                    input_mask_ph: input_mask,
-                })
-            logger.info(
-                'start benchmarking, model_prob: \n{}\n'.format(model_prob))
-
-            infer_times = []
-            infer_energy = defaultdict(list)
-            for iteration in range(args.iterations):
-                pl = PowerLogger(interval=0.05, nodes=getNodes())
-                pl.start()
-                pl.recordEvent('run model!')
-                start = time.perf_counter()
-                passes = 10
-                for i in range(passes):
+                input_ids = np.reshape(input_ids, [1, args.max_seq_length])
+                segment_ids = np.reshape(segment_ids, [1, args.max_seq_length])
+                input_mask = input_ids.astype(np.bool).astype(np.float32)
+                # warm_up 2 rounds
+                for _ in range(2):
                     model_prob = sess.run(prob, {
                         input_ids_ph: input_ids,
                         segment_ids_ph: segment_ids,
                         input_mask_ph: input_mask,
                     })
-                inference_time = (time.perf_counter() - start) / passes
-                pl.stop()
-                iteration_energy = pl.getEnergyTraces()
-                for energy_name, energy_val in iteration_energy.items():
-                    infer_energy[energy_name].append(energy_val / passes)
-                    logger.info('{}_energy iter{} {:.3f} J'.format(
-                        energy_name, iteration + 1, + energy_val / passes))
-                infer_times.append(inference_time * 1000)
-                logger.info('latency iter{} {:.3f}ms'.format(
-                    iteration + 1, inference_time * 1000))
-            latency_avg = np.mean(infer_times)
-            latency_std = np.std(infer_times)
-            logger.info('{}: latency_avg={:.3f} ms, std={:.3f} ms'.format(
-                device, latency_avg, latency_std))
-            record = {'L': bert_config.num_hidden_layers,
-                      'H': bert_config.hidden_size,
-                      'A': bert_config.num_attention_heads,
-                      'latency': latency_avg}
-            for k, v in infer_energy.items():
-                logger.info('{}: {}_energy_avg={:.3f} J, std={:.3f} J'.format(
-                    device, k, np.mean(v), np.std(v)))
-                record['energy_{}'.format(k)] = np.mean(v)
-            # results.append(record)
-            writer.writerow(record)
-            f.flush()
+                logger.info(
+                    'start benchmarking, model_prob: \n{}\n'.format(model_prob))
+
+                infer_times = []
+                infer_energy = defaultdict(list)
+                for iteration in range(args.iterations):
+                    pl = PowerLogger(interval=0.05, nodes=getNodes())
+                    pl.start()
+                    pl.recordEvent('run model!')
+                    start = time.perf_counter()
+                    passes = 10
+                    for i in range(passes):
+                        model_prob = sess.run(prob, {
+                            input_ids_ph: input_ids,
+                            segment_ids_ph: segment_ids,
+                            input_mask_ph: input_mask,
+                        })
+                    inference_time = (time.perf_counter() - start) / passes
+                    pl.stop()
+                    iteration_energy = pl.getEnergyTraces()
+                    for energy_name, energy_val in iteration_energy.items():
+                        infer_energy[energy_name].append(energy_val / passes)
+                        logger.info('{}_energy iter{} {:.3f} J'.format(
+                            energy_name, iteration + 1, + energy_val / passes))
+                    infer_times.append(inference_time * 1000)
+                    logger.info('latency iter{} {:.3f}ms'.format(
+                        iteration + 1, inference_time * 1000))
+                latency_avg = np.mean(infer_times)
+                latency_std = np.std(infer_times)
+                logger.info('{}: latency_avg={:.3f} ms, std={:.3f} ms'.format(
+                    device, latency_avg, latency_std))
+                record = {'L': bert_config.num_hidden_layers,
+                          'H': bert_config.hidden_size,
+                          'A': bert_config.num_attention_heads,
+                          'latency': latency_avg}
+                for k, v in infer_energy.items():
+                    logger.info(
+                        '{}: {}_energy_avg={:.3f} J, std={:.3f} J'.format(
+                            device, k, np.mean(v), np.std(v)))
+                    record['energy_{}'.format(k)] = np.mean(v)
+                # results.append(record)
+                writer.writerow(record)
+                f.flush()
     print('all done')
 
 
