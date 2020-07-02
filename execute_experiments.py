@@ -158,7 +158,7 @@ def signal_handler(sig, frame):
     running = False
     sys.exit(0)
 
-def run_ncs(model_info, experiment_data_file):
+def run_ncs(model_info, experiment_data_file, perf_counts_file):
     # log.basicConfig(format="[ %(levelname)s ] %(message)s", level=log.INFO, stream=sys.stdout)
     # args = build_argparser().parse_args()
     # model_xml = args.model
@@ -223,47 +223,41 @@ def run_ncs(model_info, experiment_data_file):
     logger.info("############ Running inference for {} seconds".format(run_inference_for))
 
     iteration = 0
-    while datetime.now() < inference_time_end:
-        logger.info('############ starting inference iter {}'.format(iteration))
-        start = time.perf_counter()
-        res = exec_net.infer(inputs={
-            'input_ids': input_ids,
-            'segment_ids': segment_ids,
-            'input_mask': input_mask,
-        })
-        inference_time = time.perf_counter() - start
-        infer_times.append(inference_time * 1000)
-        logger.info('############ latency iter {}: {:.1f}ms'.format(iteration, inference_time * 1000))
-        iteration += 1
+    # while datetime.now() < inference_time_end:
 
-        # if iteration > 0 and iteration % 10 == 0:
-        #     logger.info("Cooling off")
-        #     time.sleep(5)
+    logger.info('############ starting inference iter {}'.format(iteration))
+    start = time.perf_counter()
+    res = exec_net.infer(inputs={
+        'input_ids': input_ids,
+        'segment_ids': segment_ids,
+        'input_mask': input_mask,
+    })
+    inference_time = time.perf_counter() - start
+    infer_times.append(inference_time * 1000)
+    logger.info('############ latency iter {}: {:.1f}ms'.format(iteration, inference_time * 1000))
+    iteration += 1
 
     end_timestamp = get_timestamp()
-
     perf_counts = exec_net.requests[0].get_perf_counts()
-    perf_counts_file_path = os.path.join(experiments_data_dir, 'perf_counts_' + get_timestamp() + '.tsv')
-    perf_counts_file = open(perf_counts_file_path, 'w+')
-    perf_counts_file.write('L\tH\tA\tS\tName\tType\tExecType\tStatus\tRealTime(us)\n')
+    write_perf_counts_to_file(perf_counts_file, perf_counts, num_hidden_layers, hidden_size, num_attention_heads, max_seq_length)
+    logger.info('############ model: {}, input size={}, latency avg={:.1f} ms, std={:.3f} ms'.format(xml_path, max_seq_length, np.mean(infer_times), np.std(infer_times)))
+    experiment_row = '{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(num_hidden_layers, hidden_size, num_attention_heads, max_seq_length, np.mean(infer_times), np.std(infer_times), begin_timestamp, end_timestamp)
+    experiment_data_file.write(experiment_row)
+
+def write_perf_counts_to_file(perf_counts_file, perf_counts, num_hidden_layers, hidden_size, num_attention_heads, max_seq_length):
     for layer, stats in perf_counts.items():
         perf_counts_row = "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(num_hidden_layers, hidden_size, num_attention_heads,
             max_seq_length, layer, stats['layer_type'], stats['exec_type'], stats['status'], stats['real_time'])
         perf_counts_file.write(perf_counts_row)
 
-    logger.info('############ model: {}, input size={}, latency avg={:.1f} ms, std={:.3f} ms'.format(xml_path, max_seq_length, np.mean(infer_times), np.std(infer_times)))
-
-    experiment_row = '{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(num_hidden_layers, hidden_size, num_attention_heads, max_seq_length, np.mean(infer_times), np.std(infer_times), begin_timestamp, end_timestamp)
-    experiment_data_file.write(experiment_row)
-
 def get_model_list_bert_24():
     model_list = []
 
     for max_seq_length in [128]:
-        # for num_hidden_layers in [2, 4, 6, 8, 10, 12]:
-        #     for num_attention_heads in [2, 4, 8, 12]:
-        for num_hidden_layers in [12]:
-            for num_attention_heads in [12]:
+        for num_hidden_layers in [2, 4, 6, 8, 10, 12]:
+            for num_attention_heads in [2, 4, 8, 12]:
+        # for num_hidden_layers in [12]:
+        #     for num_attention_heads in [12]:
                 hidden_size = num_attention_heads * 64
                 bert_config = modeling.BertConfig(
                     vocab_size = 30522,
@@ -326,26 +320,34 @@ def create_dir(dir_name):
 def get_timestamp():
     return datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
 
-def get_experiment_data_file():
+def get_experiment_data_file(experiments_data_dir):
     create_dir(experiments_data_dir)
-    experiment_data_file_path = os.path.join(experiments_data_dir, 'experiment_' + get_timestamp() + '.tsv')
-    experiment_data_file = open(experiment_data_file_path, 'w+')
+    experiment_data_file_path = os.path.join(experiments_data_dir, 'latency.tsv')
+    experiment_data_file = open(experiment_data_file_path, 'a+')
     experiment_data_file.write('L\tH\tA\tS\tLatency(ms)\tLatencyStd\tBeginTimestamp\tEndTimestamp\n')
     return experiment_data_file
 
+def get_perf_counts_file(experiments_data_dir):
+    create_dir(experiments_data_dir)
+    perf_counts_file_path = os.path.join(experiments_data_dir, 'perf_counts.tsv')
+    perf_counts_file = open(perf_counts_file_path, 'a+')
+    perf_counts_file.write('L\tH\tA\tS\tLayerName\tLayerType\tExecType\tStatus\tRealTime(us)\n')
+    return perf_counts_file
+
 def run_models(model_list):
-    experiment_data_file = get_experiment_data_file()
+    experiments_data_dir = 'experiment_' + get_timestamp()
+    experiment_data_file = get_experiment_data_file(experiments_data_dir)
+    perf_counts_file = get_perf_counts_file(experiments_data_dir)
 
     for model_info in model_list:
         print(model_info)
-        run_ncs(model_info, experiment_data_file = experiment_data_file)
+        run_ncs(model_info, experiment_data_file = experiment_data_file, perf_counts_file = perf_counts_file )
 
     experiment_data_file.close()
 
 running = True
 bert_24_dir = 'data/bert_24'
 generated_models_dir = 'data/custom_bert'
-experiments_data_dir = 'experiments'
 
 def main():
     signal.signal(signal.SIGINT, signal_handler)
