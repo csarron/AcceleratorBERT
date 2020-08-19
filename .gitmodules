@@ -1,0 +1,6 @@
+[submodule "vqa-faster-rcnn"]
+	path = vqa-faster-rcnn
+	url = git@github.com:csarron/vqa-faster-rcnn.git
+[submodule "yolov5"]
+	path = yolov5
+	url = git@github.com:csarron/yolov5.git
