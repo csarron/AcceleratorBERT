@@ -58,7 +58,8 @@ def main():
     # images = np.ndarray(shape=(h, w))
     images = np.ndarray(shape=network.inputs[input_blob].shape)
 
-    executable_network = ie.load_network(network=network, device_name='MYRIAD')
+    executable_network = ie.load_network(network=network,
+                                         device_name=args.device)
     infer_times = []
     for iteration in range(args.count):
         start = time.perf_counter()
