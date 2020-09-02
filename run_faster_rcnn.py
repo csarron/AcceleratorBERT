@@ -40,6 +40,23 @@ def build_argparser():
                       help='Number of times to run inference')
     return parser
 
+def iterate(iteration_count, function, description = None):
+    infer_times = []
+
+    for iteration in range(iteration_count):
+        start = time.perf_counter()
+        function()
+        inference_time = time.perf_counter() - start
+        infer_times.append(inference_time * 1000)
+        log.info('{} latency iter{} {:.1f}ms'.format(description, iteration + 1,
+                                                  inference_time * 1000))
+
+    infer_times.remove(max(infer_times))
+    infer_times.remove(min(infer_times))
+
+    log.info('{} average latency: {:.1f}ms, std: {:.1f} '.format(description,
+                                                      np.mean(infer_times),
+                                                      np.std(infer_times)))
 
 def main():
     args = build_argparser().parse_args()
@@ -58,17 +75,14 @@ def main():
     # images = np.ndarray(shape=(h, w))
     images = np.ndarray(shape=network.inputs[input_blob].shape)
 
+    iterate(args.count, lambda: ie.load_network(network=network,
+                                device_name=args.device), 'Load')
+
     executable_network = ie.load_network(network=network,
                                          device_name=args.device)
-    infer_times = []
-    for iteration in range(args.count):
-        start = time.perf_counter()
-        res = executable_network.infer(inputs={input_blob: images})
-        inference_time = time.perf_counter() - start
-        infer_times.append(inference_time * 1000)
-        log.info('latency iter{} {:.1f}ms'.format(iteration + 1,
-                                                  inference_time * 1000))
 
+    iterate(args.count, lambda: executable_network.infer(
+                                inputs={input_blob: images}), 'Inference')
 
 if __name__ == '__main__':
     sys.exit(main() or 0)
