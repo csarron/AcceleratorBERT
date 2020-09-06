@@ -7,3 +7,6 @@
 [submodule "mmf"]
 	path = mmf
 	url = git@github.com:csarron/mmf.git
+[submodule "lxmert"]
+	path = lxmert
+	url = git@github.com:csarron/lxmert.git
